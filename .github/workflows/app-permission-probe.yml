@@ -1,7 +1,0 @@
-name: GHMX owner workflow permission probe
-on: workflow_dispatch
-jobs:
-  noop:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo harmless
