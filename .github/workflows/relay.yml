@@ -1,0 +1,33 @@
+name: GHMX App untargeted relay
+
+on:
+  repository_dispatch:
+    types:
+      - ghmx-app-relay
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  relay-control:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prove relay admission
+        env:
+          MARKER: ${{ github.event.client_payload.marker }}
+        run: |
+          set -euo pipefail
+          test "$MARKER" = ghmx-app-relay-20261002
+          echo "GHMX_APP_RELAY_ADMITTED=$MARKER"
+
+  call-protected:
+    needs: relay-control
+    permissions:
+      contents: read
+      statuses: write
+    uses: ./.github/workflows/protected.yml
+    secrets: inherit
+    with:
+      marker: ${{ github.event.client_payload.marker }}
+

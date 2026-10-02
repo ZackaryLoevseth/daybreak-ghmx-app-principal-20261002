@@ -1,0 +1,73 @@
+name: GHMX App protected workflow
+
+on:
+  repository_dispatch:
+    types:
+      - ghmx-app-direct-allowed
+      - ghmx-app-direct-denied
+  workflow_dispatch:
+    inputs:
+      marker:
+        description: Fixed control marker
+        required: true
+        type: string
+  workflow_call:
+    inputs:
+      marker:
+        description: Fixed App-principal marker
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  protected-effect:
+    runs-on: ubuntu-latest
+    environment: app-protected
+    steps:
+      - name: Write synthetic environment HMAC status
+        env:
+          APP_HMAC_KEY: ${{ secrets.APP_HMAC_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+          TARGET_SHA: ${{ github.sha }}
+          MARKER: ${{ inputs.marker || github.event.client_payload.marker }}
+        run: |
+          set -euo pipefail
+          case "$MARKER" in
+            ghmx-app-direct-allowed-20261002|ghmx-app-direct-denied-20261002|ghmx-app-relay-20261002)
+              ;;
+            *)
+              echo "Unexpected marker"
+              exit 2
+              ;;
+          esac
+          test -n "$APP_HMAC_KEY"
+
+          message="daybreak-ghmx-app-principal:$MARKER"
+          proof="$(printf '%s' "$message" | openssl dgst -sha256 -hmac "$APP_HMAC_KEY" -r | awk '{print $1}')"
+          [[ "$proof" =~ ^[0-9a-f]{64}$ ]]
+
+          context="ghmx/app-protected/$MARKER"
+          description="GHMX HMAC $proof"
+          body="$(jq -cn \
+            --arg state success \
+            --arg context "$context" \
+            --arg description "$description" \
+            '{state:$state,context:$context,description:$description}')"
+
+          code="$(curl --silent --show-error \
+            --output response.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'Accept: application/vnd.github+json' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'X-GitHub-Api-Version: 2026-03-10' \
+            "https://api.github.com/repos/$TARGET_REPOSITORY/statuses/$TARGET_SHA" \
+            --data "$body")"
+          test "$code" = 201
+          jq --compact-output '{state,context,description,creator:.creator.login}' response.json
+          rm -f response.json
+

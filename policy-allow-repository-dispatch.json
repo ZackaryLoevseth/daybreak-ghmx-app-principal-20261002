@@ -1,0 +1,23 @@
+{
+  "name": "GHMX App protect workflow by event",
+  "enforcement": "active",
+  "conditions": {
+    "workflow_path": {
+      "include": [
+        ".github/workflows/protected.yml"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "restrict_action_events",
+      "parameters": {
+        "allowed_events": [
+          "repository_dispatch"
+        ]
+      }
+    }
+  ]
+}
+
